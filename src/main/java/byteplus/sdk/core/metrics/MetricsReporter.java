@@ -14,7 +14,7 @@ public class MetricsReporter {
 
     private Map<String, String> BASE_TAGS;
 
-    private MetricsClient client;
+    private MetricsManager client;
 
 
 
@@ -59,7 +59,7 @@ public class MetricsReporter {
             MetricsReporter reporter = new MetricsReporter();
             reporter.BASE_TAGS = baseTags;
             reporter.enableMetrics = enableMetrics;
-            reporter.client = MetricsClient.getClientByPrefix(prefix);
+            reporter.client = MetricsManager.getManager(prefix);
             return reporter;
         }
 

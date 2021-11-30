@@ -14,8 +14,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 @Slf4j
-public class MetricsClient {
-    private static final Map<String, MetricsClient> clientCache = new HashMap<>();
+public class MetricsManager {
+    private static final Map<String, MetricsManager> managerCache = new HashMap<>();
     private static final int DEFAULT_TTL_MS = 100 * 1000;
     private static final int DEFAULT_FLUSH_MS = 15 * 1000;
 
@@ -34,25 +34,25 @@ public class MetricsClient {
     private final ScheduledExecutorService executor;
 
 
-    public static MetricsClient getClientByPrefix(String prefix) {
-        if (clientCache.containsKey(prefix)) {
-            return clientCache.get(prefix);
+    public static MetricsManager getManager(String prefix) {
+        if (managerCache.containsKey(prefix)) {
+            return managerCache.get(prefix);
         }
-        synchronized (MetricsClient.class) {
-            if (clientCache.containsKey(prefix)) {
-                return clientCache.get(prefix);
+        synchronized (MetricsManager.class) {
+            if (managerCache.containsKey(prefix)) {
+                return managerCache.get(prefix);
             }
-            MetricsClient client = new MetricsClient(prefix, DEFAULT_TTL_MS, DEFAULT_FLUSH_MS);
-            clientCache.put(prefix, client);
+            MetricsManager client = new MetricsManager(prefix, DEFAULT_TTL_MS, DEFAULT_FLUSH_MS);
+            managerCache.put(prefix, client);
             return client;
         }
     }
 
-    private MetricsClient() {
+    private MetricsManager() {
         this(Constant.DEFAULT_METRICS_PREFIX, DEFAULT_TTL_MS, DEFAULT_FLUSH_MS);
     }
 
-    public MetricsClient(String prefix, long ttlInMs, int flushInterval) {
+    public MetricsManager(String prefix, long ttlInMs, int flushInterval) {
         this.prefix = prefix;
         this.ttlInMs = ttlInMs <= 0 ? DEFAULT_TTL_MS : ttlInMs;
         this.flushInterval = flushInterval <= 0 ? DEFAULT_FLUSH_MS : flushInterval;

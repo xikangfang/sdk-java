@@ -40,7 +40,7 @@ public class Store {
     }
 
     public Store(String name, int flushTimeMs) {
-        this.httpCli = new MetricsHttpClient(Constant.OTHER_URL_FORMAT.replace("{}", MetricsConfig.getMetricsDomain()));
+        this.httpCli = MetricsHttpClient.getClient(Constant.OTHER_URL_FORMAT.replace("{}", MetricsConfig.getMetricsDomain()));
         this.name = name;
         this.queue = new ConcurrentLinkedQueue<>();
         this.valueMap = new HashMap<>();

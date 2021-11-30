@@ -49,7 +49,7 @@ public class Timer implements Metric {
         this.name = name;
         this.tagMap = MetricsHelper.recoverTags(tags);
         this.reservoir = reservoir;
-        this.httpCli = new MetricsHttpClient(Constant.OTHER_URL_FORMAT.replace("{}", MetricsConfig.getMetricsDomain()));
+        this.httpCli = MetricsHttpClient.getClient(Constant.OTHER_URL_FORMAT.replace("{}", MetricsConfig.getMetricsDomain()));
         this.queue = new ConcurrentLinkedQueue<>();
         this.expirableMetrics = new ExpirableMetrics();
         this.executor = Executors.newSingleThreadScheduledExecutor(TIMER_THREAD_FACTORY);

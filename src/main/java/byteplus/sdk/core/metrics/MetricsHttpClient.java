@@ -12,10 +12,25 @@ import java.util.concurrent.TimeUnit;
 
 @Slf4j
 public class MetricsHttpClient {
+    private static final Map<String, MetricsHttpClient> clientCache = new HashMap<>();
     private final static String CONTENT_TYPE_JSON = "application/json";
     private final static int DEFAULT_METRICS_TIMEOUT_MS = 800;
     private final static int DEFAULT_METRICS_RETRY_TIMES = 1;
     private final String url;
+
+    public static MetricsHttpClient getClient(String url) {
+        if (clientCache.containsKey(url)) {
+            return clientCache.get(url);
+        }
+        synchronized (MetricsHttpClient.class) {
+            if (clientCache.containsKey(url)) {
+                return clientCache.get(url);
+            }
+            MetricsHttpClient client = new MetricsHttpClient(url);
+            clientCache.put(url, client);
+            return client;
+        }
+    }
 
     public MetricsHttpClient(String url){
        this.url = url;

@@ -41,7 +41,7 @@ public class Counter implements Metric {
 
     public Counter(String name, int flushTimeMs) {
         this.name = name;
-        this.httpCli = new MetricsHttpClient(Constant.COUNTER_URL_FORMAT.replace("{}", MetricsConfig.getMetricsDomain()));
+        this.httpCli = MetricsHttpClient.getClient(Constant.COUNTER_URL_FORMAT.replace("{}", MetricsConfig.getMetricsDomain()));
         this.queue = new ConcurrentLinkedQueue<>();
         this.valueMap = new HashMap<>();
         this.expirableMetrics = new ExpirableMetrics();
