@@ -11,7 +11,7 @@ import static byteplus.sdk.core.metrics.Constant.DEFAULT_METRICS_EXPIRE_TIME_MS;
 
 @Slf4j
 public class Timer implements Metrics{
-    private final MetricsHttpClient httpCli;
+    private final HttpClient httpCli;
 
     private final String name;
 
@@ -28,14 +28,14 @@ public class Timer implements Metrics{
     public Timer(String name, String tags, Reservoir reservoir, int flushTimeMs) {
         this.name = name;
         this.expireTime = System.currentTimeMillis() + DEFAULT_METRICS_EXPIRE_TIME_MS;
-        this.tagMap = MetricsHelper.recoverTags(tags);
+        this.tagMap = Helper.recoverTags(tags);
         this.reservoir = reservoir;
-        this.httpCli = MetricsHttpClient.getClient(Constant.OTHER_URL_FORMAT.replace("{}", MetricsConfig.getMetricsDomain()));
+        this.httpCli = HttpClient.getClient(Constant.OTHER_URL_FORMAT.replace("{}", Config.getMetricsDomain()));
         this.queue = new ConcurrentLinkedQueue<>();
     }
 
     static {
-        TIMER_THREAD_FACTORY = new MetricsHelper.NamedThreadFactory("metric-timer-flush");
+        TIMER_THREAD_FACTORY = new Helper.NamedThreadFactory("metric-timer-flush");
     }
 
     public String getName() {
@@ -66,24 +66,24 @@ public class Timer implements Metrics{
                 size++;
             }
             Snapshot snapshot = this.reservoir.getSnapshot();
-            List<MetricRequest> metricRequests = buildMetricList(snapshot, size);
-            this.httpCli.put(metricRequests);
-            if ((MetricsConfig.isEnablePrintLog())) {
-                log.info("remove : {}", metricRequests);
+            List<Request> requests = buildMetricList(snapshot, size);
+            this.httpCli.put(requests);
+            if ((Config.isEnablePrintLog())) {
+                log.info("remove : {}", requests);
             }
         } catch (Throwable e) {
-            log.error("flush timer exception: {} \n {}", e.getMessage(), MetricsHelper.ExceptionUtil.getTrace(e));
+            log.error("flush timer exception: {} \n {}", e.getMessage(), Helper.ExceptionUtil.getTrace(e));
         }
     }
 
 
 
-    public List<MetricRequest> buildMetricList(Snapshot shot, int size) {
-        List<MetricRequest> data = new ArrayList<>();
+    public List<Request> buildMetricList(Snapshot shot, int size) {
+        List<Request> data = new ArrayList<>();
         long timestamp = System.currentTimeMillis() / 1000L;
 
         //count
-        MetricRequest<Long> countRequest = new MetricRequest<>();
+        Request<Long> countRequest = new Request<>();
         countRequest.setMetric(name + "." + "count");
         countRequest.setTimestamp(timestamp);
         countRequest.setTags(new HashMap<>(this.tagMap));
@@ -91,7 +91,7 @@ public class Timer implements Metrics{
         data.add(countRequest);
 
         //max
-        MetricRequest<Long> maxRequest = new MetricRequest<>();
+        Request<Long> maxRequest = new Request<>();
         maxRequest.setMetric(name + "." + "max");
         maxRequest.setTimestamp(timestamp);
         maxRequest.setTags(new HashMap<>(this.tagMap));
@@ -99,7 +99,7 @@ public class Timer implements Metrics{
         data.add(maxRequest);
 
         //min
-        MetricRequest<Long> minRequest = new MetricRequest<>();
+        Request<Long> minRequest = new Request<>();
         minRequest.setMetric(name + "." + "min");
         minRequest.setTimestamp(timestamp);
         minRequest.setTags(new HashMap<>(this.tagMap));
@@ -107,7 +107,7 @@ public class Timer implements Metrics{
         data.add(minRequest);
 
         //avg
-        MetricRequest<Double> avgRequest = new MetricRequest<>();
+        Request<Double> avgRequest = new Request<>();
         avgRequest.setMetric(name + "." + "avg");
         avgRequest.setTimestamp(timestamp);
         avgRequest.setTags(new HashMap<>(this.tagMap));
@@ -115,7 +115,7 @@ public class Timer implements Metrics{
         data.add(avgRequest);
 
         // median
-        MetricRequest<Double> medianRequest = new MetricRequest<>();
+        Request<Double> medianRequest = new Request<>();
         medianRequest.setMetric(name + "." + "median");
         medianRequest.setTimestamp(timestamp);
         medianRequest.setTags(new HashMap<>(this.tagMap));
@@ -123,7 +123,7 @@ public class Timer implements Metrics{
         data.add(medianRequest);
 
         //pc75
-        MetricRequest<Double> pc75Request = new MetricRequest<>();
+        Request<Double> pc75Request = new Request<>();
         pc75Request.setMetric(name + "." + "pct75");
         pc75Request.setTimestamp(timestamp);
         pc75Request.setTags(new HashMap<>(this.tagMap));
@@ -131,7 +131,7 @@ public class Timer implements Metrics{
         data.add(pc75Request);
 
         //pc90
-        MetricRequest<Double> pc90Request = new MetricRequest<>();
+        Request<Double> pc90Request = new Request<>();
         pc90Request.setMetric(name + "." + "pct90");
         pc90Request.setTimestamp(timestamp);
         pc90Request.setTags(new HashMap<>(this.tagMap));
@@ -139,7 +139,7 @@ public class Timer implements Metrics{
         data.add(pc90Request);
 
         //pc95
-        MetricRequest<Double> pc95Request = new MetricRequest<>();
+        Request<Double> pc95Request = new Request<>();
         pc95Request.setMetric(name + "." + "pct95");
         pc95Request.setTimestamp(timestamp);
         pc95Request.setTags(new HashMap<>(this.tagMap));
@@ -147,7 +147,7 @@ public class Timer implements Metrics{
         data.add(pc95Request);
 
         //pc99
-        MetricRequest<Double> pc99Request = new MetricRequest<>();
+        Request<Double> pc99Request = new Request<>();
         pc99Request.setMetric(name + "." + "pct99");
         pc99Request.setTimestamp(timestamp);
         pc99Request.setTags(new HashMap<>(this.tagMap));
@@ -155,7 +155,7 @@ public class Timer implements Metrics{
         data.add(pc99Request);
 
         //pc999
-        MetricRequest<Double> pc999Request = new MetricRequest<>();
+        Request<Double> pc999Request = new Request<>();
         pc999Request.setMetric(name + "." + "pct999");
         pc999Request.setTimestamp(timestamp);
         pc999Request.setTags(new HashMap<>(this.tagMap));

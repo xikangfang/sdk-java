@@ -8,13 +8,13 @@ import java.util.*;
 import java.util.concurrent.*;
 
 @Slf4j
-public class MetricsHttpClient {
-    private static final Map<String, MetricsHttpClient> clientCache = new HashMap<>();
+public class HttpClient {
+    private static final Map<String, HttpClient> clientCache = new HashMap<>();
     private final static String CONTENT_TYPE_JSON = "application/json";
     private final static int DEFAULT_HTTP_TIMEOUT_MS = 800;
     private final static int MAX_REQUEST_SIZE = 5000; // in case memory explosion caused by too many requests
     private final static int MAX_TRY_TIMES = 2;
-    private final LinkedBlockingQueue<List<MetricRequest>> queue;
+    private final LinkedBlockingQueue<List<Request>> queue;
     private final ExecutorService executor;
     private final String url;
 
@@ -32,63 +32,63 @@ public class MetricsHttpClient {
         }
     }
 
-    public static MetricsHttpClient getClient(String url) {
+    public static HttpClient getClient(String url) {
         if (clientCache.containsKey(url)) {
             return clientCache.get(url);
         }
-        synchronized (MetricsHttpClient.class) {
+        synchronized (HttpClient.class) {
             if (clientCache.containsKey(url)) {
                 return clientCache.get(url);
             }
-            MetricsHttpClient client = new MetricsHttpClient(url);
+            HttpClient client = new HttpClient(url);
             clientCache.put(url, client);
             return client;
         }
     }
 
-    public MetricsHttpClient(String url) {
+    public HttpClient(String url) {
         this.url = url;
         this.queue = new LinkedBlockingQueue<>(MAX_REQUEST_SIZE);
         this.executor = Executors.newSingleThreadExecutor();
         executor.submit((Runnable) () -> {
             while (true) {
                 try {
-                    List<MetricRequest> requests = queue.take();
+                    List<Request> requests = queue.take();
                     if (!send(buildMetricsRequest(requests))) {
                         log.error("exec metrics fail, url:{}", url);
                     }
                 } catch (InterruptedException e) {
-                    log.error("poll metrics requests fail: {} \n {}", e.getMessage(), MetricsHelper.ExceptionUtil.getTrace(e));
+                    log.error("poll metrics requests fail: {} \n {}", e.getMessage(), Helper.ExceptionUtil.getTrace(e));
                 }
             }
         });
     }
 
-    public void put(List<MetricRequest> metricRequests) {
-        if (!this.queue.offer(metricRequests)) {
-            if (MetricsConfig.isEnablePrintLog()) {
+    public void put(List<Request> requests) {
+        if (!this.queue.offer(requests)) {
+            if (Config.isEnablePrintLog()) {
                 log.warn("metrics requests emit too fast, exceed max queue size({})", MAX_REQUEST_SIZE);
             }
         }
     }
 
-    public boolean send(Request request) {
+    public boolean send(okhttp3.Request request) {
         Response response = null;
         for (int i = 0; i < MAX_TRY_TIMES; i++) {
             try {
                 response = ClientHolder.getClient().newCall(request).execute();
                 if (response.isSuccessful()) {
-                    if (MetricsConfig.isEnablePrintLog()) {
+                    if (Config.isEnablePrintLog()) {
                         log.debug("success reporting metrics request:\n{}", response);
                     }
                     return true;
                 }
                 // if not success and no exception, print log
-                if (MetricsConfig.isEnablePrintLog()) {
+                if (Config.isEnablePrintLog()) {
                     log.error("do http request fail, url:{}\n response:{}\n", url, response);
                 }
             } catch (Throwable e) {
-                log.error("do http request exception: {} \n {}", e.getMessage(), MetricsHelper.ExceptionUtil.getTrace(e));
+                log.error("do http request exception: {} \n {}", e.getMessage(), Helper.ExceptionUtil.getTrace(e));
             } finally {
                 if (response != null) response.close();
             }
@@ -96,14 +96,14 @@ public class MetricsHttpClient {
         return false;
     }
 
-    public boolean emit(List<MetricRequest> metricRequests) {
-        Request request = buildMetricsRequest(metricRequests);
+    public boolean emit(List<Request> requests) {
+        okhttp3.Request request = buildMetricsRequest(requests);
         return send(request);
     }
 
     // batch send request
-    private Request buildMetricsRequest(List<MetricRequest> requests) {
-        Request.Builder builder = new Request.Builder();
+    private okhttp3.Request buildMetricsRequest(List<Request> requests) {
+        okhttp3.Request.Builder builder = new okhttp3.Request.Builder();
         for (Map.Entry<String, String> entry : generateMetricsHeader().entrySet()) {
             builder.addHeader(entry.getKey(), entry.getValue());
         }

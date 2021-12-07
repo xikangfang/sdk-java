@@ -5,7 +5,7 @@ import lombok.Data;
 import java.util.Map;
 
 @Data
-public class MetricRequest<T> {
+public class Request<T> {
     private String metric;
 
     private long timestamp;

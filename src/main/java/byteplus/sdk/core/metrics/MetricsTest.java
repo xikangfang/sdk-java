@@ -10,14 +10,14 @@ public class MetricsTest {
     }
 
     public static void metricsInit() {
-        MetricsConfig.setPrintLog(false);
+        Config.setPrintLog(false);
     }
 
     // test demo for store report
     public static void TestStoreReport() {
         TreeMap<String, String> baseTags = new TreeMap<>();
         baseTags.put("tenant", "metrics_demo");
-        MetricsReporter reporter = new MetricsReporter.ReporterBuilder().
+        Reporter reporter = new Reporter.ReporterBuilder().
                 enableMetrics(true).
                 baseTags(baseTags).build();
         for (int i = 0; i < 100000; i++) {
@@ -35,7 +35,7 @@ public class MetricsTest {
     public static void TestCounterReport() {
         TreeMap<String, String> baseTags = new TreeMap<>();
         baseTags.put("tenant", "metrics_demo");
-        MetricsReporter reporter = new MetricsReporter.ReporterBuilder().
+        Reporter reporter = new Reporter.ReporterBuilder().
                 enableMetrics(true).
                 baseTags(baseTags).build();
         for (int i = 0; i < 100000; i++) {
@@ -54,7 +54,7 @@ public class MetricsTest {
     public static void TestTimerReport() {
         TreeMap<String, String> baseTags = new TreeMap<>();
         baseTags.put("tenant", "metrics_demo");
-        MetricsReporter reporter = new MetricsReporter.ReporterBuilder().
+        Reporter reporter = new Reporter.ReporterBuilder().
                 enableMetrics(true).
                 baseTags(baseTags).build();
         for (int i = 0; i < 100000; i++) {

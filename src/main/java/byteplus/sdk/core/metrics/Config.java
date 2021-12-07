@@ -1,7 +1,7 @@
 package byteplus.sdk.core.metrics;
 
 
-public class MetricsConfig {
+public class Config {
     private static String metricsDomain = Constant.DEFAULT_METRICS_DOMAIN;
     private static boolean printLog;
 

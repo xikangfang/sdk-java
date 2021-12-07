@@ -4,26 +4,23 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 
 import static byteplus.sdk.core.metrics.Constant.DEFAULT_METRICS_EXPIRE_TIME_MS;
 
 @Slf4j
 public class Store implements Metrics {
-    private final MetricsHttpClient httpCli;
+    private final HttpClient httpCli;
 
     private final String name;
 
     private long expireTime;
 
-    private final Map<Item<Double>, MetricRequest<Double>> valueMap;
+    private final Map<Item<Double>, Request<Double>> valueMap;
 
     private final ConcurrentLinkedQueue<Item<Double>> queue;
 
     public Store(String name, int flushTimeMs) {
-        this.httpCli = MetricsHttpClient.getClient(Constant.OTHER_URL_FORMAT.replace("{}", MetricsConfig.getMetricsDomain()));
+        this.httpCli = HttpClient.getClient(Constant.OTHER_URL_FORMAT.replace("{}", Config.getMetricsDomain()));
         this.name = name;
         this.expireTime = System.currentTimeMillis() + DEFAULT_METRICS_EXPIRE_TIME_MS;
         this.queue = new ConcurrentLinkedQueue<>();
@@ -46,10 +43,10 @@ public class Store implements Metrics {
 
     public void emit(Double value, Map<String, String> tags) {
         TreeMap<String, String> map = new TreeMap<>(tags);
-        String tag = MetricsHelper.processTags(map);
+        String tag = Helper.processTags(map);
         Item<Double> item = new Item<>(tag, value);
         queue.offer(item);
-        if (MetricsConfig.isEnablePrintLog()) {
+        if (Config.isEnablePrintLog()) {
             log.debug("enqueue {} store success {}", name, item);
         }
     }
@@ -64,30 +61,30 @@ public class Store implements Metrics {
                 if (valueMap.containsKey(item)) {
                     valueMap.get(item).setValue(item.getValue());
                 } else {
-                    MetricRequest<Double> request = new MetricRequest<>();
+                    Request<Double> request = new Request<>();
                     request.setMetric(name);
                     request.setValue(item.getValue());
-                    request.setTags(MetricsHelper.recoverTags(item.getTags()));
+                    request.setTags(Helper.recoverTags(item.getTags()));
                     valueMap.put(item, request);
                 }
             }
 
-            List<MetricRequest> requestList = new ArrayList<>(this.valueMap.values());
+            List<Request> requestList = new ArrayList<>(this.valueMap.values());
             if (!requestList.isEmpty()) {
                 long timestamp = System.currentTimeMillis() / 1000L;
                 requestList.forEach(key -> {
                     this.valueMap.values().remove(key);
-                    if ((MetricsConfig.isEnablePrintLog())) {
+                    if ((Config.isEnablePrintLog())) {
                         log.info("remove store key {}", key);
                     }
                 });
-                for (MetricRequest request : requestList) {
+                for (Request request : requestList) {
                     request.setTimestamp(timestamp);
                 }
                 httpCli.put(requestList);
             }
         } catch (Exception e) {
-            log.error("flush store exception: {} \n {}", e.getMessage(), MetricsHelper.ExceptionUtil.getTrace(e));
+            log.error("flush store exception: {} \n {}", e.getMessage(), Helper.ExceptionUtil.getTrace(e));
         }
 
     }

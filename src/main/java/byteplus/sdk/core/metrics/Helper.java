@@ -16,7 +16,7 @@ import java.util.TreeMap;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.atomic.AtomicInteger;
 
-public class MetricsHelper {
+public class Helper {
 
     public static String processTags(TreeMap<String, String> treeMap) {
         StringBuilder sb = new StringBuilder();

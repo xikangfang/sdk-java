@@ -16,8 +16,8 @@ import java.util.stream.Collectors;
 import static byteplus.sdk.core.metrics.Constant.DEFAULT_TIDY_INTERVAL;
 
 @Slf4j
-public class MetricsManager {
-    private static final Map<String, MetricsManager> managerCache = new HashMap<>();
+public class Manager {
+    private static final Map<String, Manager> managerCache = new HashMap<>();
     private static final int DEFAULT_FLUSH_MS = 15 * 1000;
 
     private final String prefix;
@@ -33,25 +33,25 @@ public class MetricsManager {
     private final ScheduledExecutorService tidyExecutor;
 
 
-    public static MetricsManager GetManager(String prefix) {
+    public static Manager GetManager(String prefix) {
         if (managerCache.containsKey(prefix)) {
             return managerCache.get(prefix);
         }
-        synchronized (MetricsManager.class) {
+        synchronized (Manager.class) {
             if (managerCache.containsKey(prefix)) {
                 return managerCache.get(prefix);
             }
-            MetricsManager client = new MetricsManager(prefix, DEFAULT_TIDY_INTERVAL, DEFAULT_FLUSH_MS);
+            Manager client = new Manager(prefix, DEFAULT_TIDY_INTERVAL, DEFAULT_FLUSH_MS);
             managerCache.put(prefix, client);
             return client;
         }
     }
 
-    private MetricsManager() {
+    private Manager() {
         this(Constant.DEFAULT_METRICS_PREFIX, DEFAULT_TIDY_INTERVAL, DEFAULT_FLUSH_MS);
     }
 
-    public MetricsManager(String prefix, long tidyInterval, int flushInterval) {
+    public Manager(String prefix, long tidyInterval, int flushInterval) {
         this.prefix = prefix;
         this.tidyInterval = tidyInterval <= 0 ? DEFAULT_TIDY_INTERVAL : tidyInterval;
         this.flushInterval = flushInterval <= 0 ? DEFAULT_FLUSH_MS : flushInterval;
@@ -59,9 +59,9 @@ public class MetricsManager {
         this.metricsMaps.put(Constant.MetricsType.metricsTypeCounter, new ConcurrentHashMap<>(256));
         this.metricsMaps.put(Constant.MetricsType.metricsTypeStore, new ConcurrentHashMap<>(256));
         this.metricsMaps.put(Constant.MetricsType.metricsTypeTimer, new ConcurrentHashMap<>(256));
-        this.flushExecutor = Executors.newSingleThreadScheduledExecutor(new MetricsHelper.NamedThreadFactory("metric-flush"));
+        this.flushExecutor = Executors.newSingleThreadScheduledExecutor(new Helper.NamedThreadFactory("metric-flush"));
         this.flushExecutor.scheduleAtFixedRate(this::reportMetrics, this.flushInterval, this.flushInterval, TimeUnit.MILLISECONDS);
-        this.tidyExecutor = Executors.newSingleThreadScheduledExecutor(new MetricsHelper.NamedThreadFactory("metric-expire"));
+        this.tidyExecutor = Executors.newSingleThreadScheduledExecutor(new Helper.NamedThreadFactory("metric-expire"));
         this.tidyExecutor.scheduleAtFixedRate(this::tidy, this.tidyInterval, this.tidyInterval, TimeUnit.MILLISECONDS);
     }
 
@@ -77,7 +77,7 @@ public class MetricsManager {
                     if (!expiredMetrics.isEmpty()) {
                         expiredMetrics.parallelStream().forEach(key -> {
                             metricsMap.remove(key);
-                            if (MetricsConfig.isEnablePrintLog()) {
+                            if (Config.isEnablePrintLog()) {
                                 log.info("remove expired store metrics {}", key);
                             }
                         });
@@ -105,7 +105,7 @@ public class MetricsManager {
     private Metrics getOrAddMetrics(Constant.MetricsType metricsType, String name, TreeMap<String, String> tags) {
         String tagString = "";
         if (tags != null && !tags.isEmpty()) {
-            tagString = MetricsHelper.processTags(tags);
+            tagString = Helper.processTags(tags);
         }
         String metricsKey = name + tagString;
         if (metricsMaps.get(metricsType).get(metricsKey) == null) {

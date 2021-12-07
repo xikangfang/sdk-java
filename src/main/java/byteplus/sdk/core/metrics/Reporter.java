@@ -8,13 +8,13 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.TreeMap;
 
-public class MetricsReporter {
+public class Reporter {
 
     private boolean enableMetrics;
 
     private Map<String, String> BASE_TAGS;
 
-    private MetricsManager manager;
+    private Manager manager;
 
 
 
@@ -48,18 +48,18 @@ public class MetricsReporter {
             return this;
         }
 
-        public MetricsReporter build() {
+        public Reporter build() {
             if (Objects.isNull(baseTags)) {
                 baseTags = new TreeMap<>();
             }
-            baseTags.put("host", MetricsHelper.LocalHostUtil.getHostAddr());
+            baseTags.put("host", Helper.LocalHostUtil.getHostAddr());
             if (Objects.isNull(prefix) || prefix.equals("")) {
                 prefix = Constant.DEFAULT_METRICS_PREFIX;
             }
-            MetricsReporter reporter = new MetricsReporter();
+            Reporter reporter = new Reporter();
             reporter.BASE_TAGS = baseTags;
             reporter.enableMetrics = enableMetrics;
-            reporter.manager = MetricsManager.GetManager(prefix);
+            reporter.manager = Manager.GetManager(prefix);
             return reporter;
         }
 
@@ -78,7 +78,7 @@ public class MetricsReporter {
         if (!enableMetrics) {
             return;
         }
-        manager.emitCounter(key, value, MetricsHelper.appendTags(BASE_TAGS, tagKvs));
+        manager.emitCounter(key, value, Helper.appendTags(BASE_TAGS, tagKvs));
     }
 
     /**
@@ -90,7 +90,7 @@ public class MetricsReporter {
         if (!enableMetrics) {
             return;
         }
-        manager.emitTimer(key, value, MetricsHelper.appendTags(BASE_TAGS, tagKvs));
+        manager.emitTimer(key, value, Helper.appendTags(BASE_TAGS, tagKvs));
     }
 
     /**
@@ -103,7 +103,7 @@ public class MetricsReporter {
             return;
         }
         long cost = System.currentTimeMillis() - begin;
-        manager.emitTimer(key, cost, MetricsHelper.appendTags(BASE_TAGS, tagKvs));
+        manager.emitTimer(key, cost, Helper.appendTags(BASE_TAGS, tagKvs));
     }
 
     /**
@@ -115,7 +115,7 @@ public class MetricsReporter {
         if (!enableMetrics) {
             return;
         }
-        manager.emitStore(key, value, MetricsHelper.appendTags(BASE_TAGS, tagKvs));
+        manager.emitStore(key, value, Helper.appendTags(BASE_TAGS, tagKvs));
     }
 
     public void exception(String key, long begin, Exception e, String... tagKvs) {
