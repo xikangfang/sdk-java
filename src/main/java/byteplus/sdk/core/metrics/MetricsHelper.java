@@ -42,8 +42,8 @@ public class MetricsHelper {
         return tags;
     }
 
-    public static Map<String, String> appendTags(Map<String, String> baseTags, String[] tagKvs) {
-        Map<String, String> tags = new TreeMap<>(baseTags);
+    public static TreeMap<String, String> appendTags(Map<String, String> baseTags, String[] tagKvs) {
+        TreeMap<String, String> tags = new TreeMap<>(baseTags);
         for (String kv : tagKvs) {
             String[] tagFields = kv.split(":", 2);
             tags.put(tagFields[0], tagFields[1]);

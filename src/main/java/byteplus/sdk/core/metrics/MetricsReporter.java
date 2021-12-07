@@ -14,7 +14,7 @@ public class MetricsReporter {
 
     private Map<String, String> BASE_TAGS;
 
-    private MetricsManager client;
+    private MetricsManager manager;
 
 
 
@@ -59,12 +59,15 @@ public class MetricsReporter {
             MetricsReporter reporter = new MetricsReporter();
             reporter.BASE_TAGS = baseTags;
             reporter.enableMetrics = enableMetrics;
-            reporter.client = MetricsManager.getManager(prefix);
+            reporter.manager = MetricsManager.GetManager(prefix);
             return reporter;
         }
 
     }
 
+    public void stop() {
+        manager.stop();
+    }
 
     /**
      * Counter介绍：https://site.bytedance.net/docs/2080/2717/36906/
@@ -75,7 +78,7 @@ public class MetricsReporter {
         if (!enableMetrics) {
             return;
         }
-        client.emitCounter(key, value, MetricsHelper.appendTags(BASE_TAGS, tagKvs));
+        manager.emitCounter(key, value, MetricsHelper.appendTags(BASE_TAGS, tagKvs));
     }
 
     /**
@@ -87,7 +90,7 @@ public class MetricsReporter {
         if (!enableMetrics) {
             return;
         }
-        client.emitTimer(key, value, MetricsHelper.appendTags(BASE_TAGS, tagKvs));
+        manager.emitTimer(key, value, MetricsHelper.appendTags(BASE_TAGS, tagKvs));
     }
 
     /**
@@ -100,7 +103,7 @@ public class MetricsReporter {
             return;
         }
         long cost = System.currentTimeMillis() - begin;
-        client.emitTimer(key, cost, MetricsHelper.appendTags(BASE_TAGS, tagKvs));
+        manager.emitTimer(key, cost, MetricsHelper.appendTags(BASE_TAGS, tagKvs));
     }
 
     /**
@@ -112,7 +115,7 @@ public class MetricsReporter {
         if (!enableMetrics) {
             return;
         }
-        client.emitStore(key, value, MetricsHelper.appendTags(BASE_TAGS, tagKvs));
+        manager.emitStore(key, value, MetricsHelper.appendTags(BASE_TAGS, tagKvs));
     }
 
     public void exception(String key, long begin, Exception e, String... tagKvs) {

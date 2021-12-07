@@ -8,21 +8,9 @@ public class Item<T> {
     @Getter
     private final T value;
 
-    private final long expireTime;
-
     public Item(String tags, T value) {
-        this(tags, value, Constant.DEFAULT_EXPIRE_TIME_MS);
-    }
-
-    public Item(String tags, T value, long expireTime) {
-        expireTime = expireTime <= 0 ? Constant.DEFAULT_EXPIRE_TIME_MS : expireTime;
         this.tags = tags;
         this.value = value;
-        this.expireTime = System.currentTimeMillis() + expireTime;
-    }
-
-    public boolean isExpired() {
-        return System.currentTimeMillis() > this.expireTime;
     }
 
     @Override

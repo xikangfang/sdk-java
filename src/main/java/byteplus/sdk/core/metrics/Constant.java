@@ -15,9 +15,17 @@ public class Constant {
 
     // metric max flush size
     public static final int MAX_FLUSH_SIZE = 65536 * 2;
-    // metric item default expire time
-    public static final long DEFAULT_EXPIRE_TIME_MS = 10 * 1000;
+    // metrics expire time
+    public static final long DEFAULT_METRICS_EXPIRE_TIME_MS = 12 * 60 * 60 * 1000L;
+    //default tidy interval
+    public static final int DEFAULT_TIDY_INTERVAL = 100 * 1000;
+    // metrics flush interval
+    public static final int DEFAULT_FLUSH_MS = 15 * 1000;
+
     // metric http protocList
     public static final List<Protocol> PROTOCOL_LIST = Arrays.asList(Protocol.HTTP_2, Protocol.HTTP_1_1);
 
+    enum MetricsType {
+        metricsTypeCounter, metricsTypeTimer, metricsTypeStore
+    }
 }

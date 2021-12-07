@@ -13,28 +13,27 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
+import static byteplus.sdk.core.metrics.Constant.DEFAULT_TIDY_INTERVAL;
+
 @Slf4j
 public class MetricsManager {
     private static final Map<String, MetricsManager> managerCache = new HashMap<>();
-    private static final int DEFAULT_TTL_MS = 100 * 1000;
     private static final int DEFAULT_FLUSH_MS = 15 * 1000;
 
     private final String prefix;
-    // expire interval of each counter/timer/store, expired metrics will be cleaned
-    private final long ttlInMs;
+    // interval of clean expired metrics
+    private final long tidyInterval;
     //interval of flushing all cache metrics
     private final int flushInterval;
 
-    private final ConcurrentHashMap<String, Store> storeMetrics;
+    private final ConcurrentHashMap<Constant.MetricsType, ConcurrentHashMap<String, Metrics>> metricsMaps;
 
-    private final ConcurrentHashMap<String, Counter> counterMetrics;
+    private final ScheduledExecutorService flushExecutor;
 
-    private final ConcurrentHashMap<String, Timer> timerMetrics;
-
-    private final ScheduledExecutorService executor;
+    private final ScheduledExecutorService tidyExecutor;
 
 
-    public static MetricsManager getManager(String prefix) {
+    public static MetricsManager GetManager(String prefix) {
         if (managerCache.containsKey(prefix)) {
             return managerCache.get(prefix);
         }
@@ -42,140 +41,104 @@ public class MetricsManager {
             if (managerCache.containsKey(prefix)) {
                 return managerCache.get(prefix);
             }
-            MetricsManager client = new MetricsManager(prefix, DEFAULT_TTL_MS, DEFAULT_FLUSH_MS);
+            MetricsManager client = new MetricsManager(prefix, DEFAULT_TIDY_INTERVAL, DEFAULT_FLUSH_MS);
             managerCache.put(prefix, client);
             return client;
         }
     }
 
     private MetricsManager() {
-        this(Constant.DEFAULT_METRICS_PREFIX, DEFAULT_TTL_MS, DEFAULT_FLUSH_MS);
+        this(Constant.DEFAULT_METRICS_PREFIX, DEFAULT_TIDY_INTERVAL, DEFAULT_FLUSH_MS);
     }
 
-    public MetricsManager(String prefix, long ttlInMs, int flushInterval) {
+    public MetricsManager(String prefix, long tidyInterval, int flushInterval) {
         this.prefix = prefix;
-        this.ttlInMs = ttlInMs <= 0 ? DEFAULT_TTL_MS : ttlInMs;
+        this.tidyInterval = tidyInterval <= 0 ? DEFAULT_TIDY_INTERVAL : tidyInterval;
         this.flushInterval = flushInterval <= 0 ? DEFAULT_FLUSH_MS : flushInterval;
-        this.storeMetrics = new ConcurrentHashMap<>(256);
-        this.counterMetrics = new ConcurrentHashMap<>(256);
-        this.timerMetrics = new ConcurrentHashMap<>(256);
-        this.executor = Executors.newSingleThreadScheduledExecutor(new MetricsHelper.NamedThreadFactory("metric-expire"));
-        this.executor.scheduleAtFixedRate(this::tidy, this.ttlInMs, this.ttlInMs, TimeUnit.MILLISECONDS);
+        this.metricsMaps = new ConcurrentHashMap<>();
+        this.metricsMaps.put(Constant.MetricsType.metricsTypeCounter, new ConcurrentHashMap<>(256));
+        this.metricsMaps.put(Constant.MetricsType.metricsTypeStore, new ConcurrentHashMap<>(256));
+        this.metricsMaps.put(Constant.MetricsType.metricsTypeTimer, new ConcurrentHashMap<>(256));
+        this.flushExecutor = Executors.newSingleThreadScheduledExecutor(new MetricsHelper.NamedThreadFactory("metric-flush"));
+        this.flushExecutor.scheduleAtFixedRate(this::reportMetrics, this.flushInterval, this.flushInterval, TimeUnit.MILLISECONDS);
+        this.tidyExecutor = Executors.newSingleThreadScheduledExecutor(new MetricsHelper.NamedThreadFactory("metric-expire"));
+        this.tidyExecutor.scheduleAtFixedRate(this::tidy, this.tidyInterval, this.tidyInterval, TimeUnit.MILLISECONDS);
+    }
+
+    private void reportMetrics() {
+        metricsMaps.forEach((metricsType, metricsMap) ->
+                metricsMap.forEach((name, metric) -> metric.flush()));
     }
 
     private void tidy() {
-        List<String> expiredStores = storeMetrics.entrySet().parallelStream().filter(metrics ->
-                metrics.getValue().isExpired()).map(Map.Entry::getKey).collect(Collectors.toList());
-
-        if (!expiredStores.isEmpty()) {
-            synchronized (this) {
-                expiredStores.parallelStream().forEach(key -> {
-                    this.storeMetrics.get(key).close();
-                    this.storeMetrics.remove(key);
-                    if (MetricsConfig.isEnablePrintLog()) {
-                        log.info("remove expired store metrics {}", key);
+        metricsMaps.forEach((metricsType, metricsMap) -> {
+                    List<String> expiredMetrics = metricsMap.entrySet().parallelStream().filter(metrics ->
+                            metrics.getValue().isExpired()).map(Map.Entry::getKey).collect(Collectors.toList());
+                    if (!expiredMetrics.isEmpty()) {
+                        expiredMetrics.parallelStream().forEach(key -> {
+                            metricsMap.remove(key);
+                            if (MetricsConfig.isEnablePrintLog()) {
+                                log.info("remove expired store metrics {}", key);
+                            }
+                        });
                     }
-                });
-            }
+                }
+        );
+    }
+
+    public void emitCounter(String name, double value, TreeMap<String, String> tags) {
+        getOrAddMetrics(Constant.MetricsType.metricsTypeCounter, prefix + "." + name, null).
+                emit(value, tags);
+    }
+
+    public void emitStore(String name, double value, TreeMap<String, String> tags) {
+        getOrAddMetrics(Constant.MetricsType.metricsTypeStore, prefix + "." + name, null).
+                emit(value, tags);
+    }
+
+    public void emitTimer(String name, double value, TreeMap<String, String> tags) {
+        getOrAddMetrics(Constant.MetricsType.metricsTypeTimer, prefix + "." + name, tags).
+                emit(value, null);
+    }
+
+
+    private Metrics getOrAddMetrics(Constant.MetricsType metricsType, String name, TreeMap<String, String> tags) {
+        String tagString = "";
+        if (tags != null && !tags.isEmpty()) {
+            tagString = MetricsHelper.processTags(tags);
         }
-
-        List<String> expiredCounters = counterMetrics.entrySet().parallelStream().filter(metrics ->
-                metrics.getValue().isExpired()).map(Map.Entry::getKey).collect(Collectors.toList());
-
-        if (!expiredCounters.isEmpty()) {
+        String metricsKey = name + tagString;
+        if (metricsMaps.get(metricsType).get(metricsKey) == null) {
             synchronized (this) {
-                expiredCounters.parallelStream().forEach(key -> {
-                    this.counterMetrics.get(key).close();
-                    this.counterMetrics.remove(key);
-                    if (MetricsConfig.isEnablePrintLog()) {
-                        log.info("remove expired counter metrics {}", key);
+                if (metricsMaps.get(metricsType).get(metricsKey) == null) {
+                    Metrics metrics = buildMetrics(metricsType, name, tagString);
+                    if (metrics != null) {
+                        metrics.updateExpireTime(this.tidyInterval);
                     }
-                });
-            }
-        }
-
-        List<String> expiredTimers = timerMetrics.entrySet().parallelStream().filter(metrics ->
-                metrics.getValue().isExpired()).map(Map.Entry::getKey).collect(Collectors.toList());
-
-        if (!expiredTimers.isEmpty()) {
-            synchronized (this) {
-                expiredTimers.parallelStream().forEach(key -> {
-                    this.timerMetrics.get(key).close();
-                    this.timerMetrics.remove(key);
-                    if (MetricsConfig.isEnablePrintLog()) {
-                        log.info("remove expired timer metrics {}", key);
-                    }
-                });
-            }
-        }
-    }
-
-
-    public void emitCounter(String name, long value, Map<String, String> tags) {
-        getOrAddTsCounter(prefix + "." + name).emit(value, tags);
-    }
-
-    public void emitTimer(String name, long value, Map<String, String> tags) {
-        this.getOrAddTsTimer(prefix + "." + name, tags).emit(value);
-    }
-
-    public void emitStore(String name, double value, Map<String, String> tags) {
-        getOrAddTsStore(prefix + "." + name).emit(value, tags);
-    }
-
-    private Store getOrAddTsStore(final String name) {
-        Store expirableStore = this.storeMetrics.get(name);
-        if (expirableStore == null) {
-            synchronized (this) {
-                if (this.storeMetrics.get(name) == null) {
-                    expirableStore = new Store(name, flushInterval)
-                            .updateExpireTime(this.ttlInMs);
-                    this.storeMetrics.put(name, expirableStore);
-                    return expirableStore;
+                    metricsMaps.get(metricsType).put(metricsKey, metrics);
+                    return metrics;
                 }
             }
         }
-        return this.storeMetrics.get(name).updateExpireTime(this.ttlInMs);
+        return metricsMaps.get(metricsType).get(metricsKey);
     }
 
-    private Counter getOrAddTsCounter(final String name) {
-        Counter expirableCounter = this.counterMetrics.get(name);
-        if (expirableCounter == null) {
-            synchronized (this) {
-                if (this.counterMetrics.get(name) == null) {
-                    expirableCounter = new Counter(name, flushInterval)
-                            .updateExpireTime(this.ttlInMs);
-                    this.counterMetrics.put(name, expirableCounter);
-                    return expirableCounter;
-                }
-            }
+    private Metrics buildMetrics(Constant.MetricsType metricsType, String name, String tagString) {
+        switch (metricsType) {
+            case metricsTypeStore:
+                return new Store(name, flushInterval);
+            case metricsTypeCounter:
+                return new Counter(name, flushInterval);
+            case metricsTypeTimer:
+                return new Timer(name, tagString, new LockFreeSlidingWindowReservoir(), flushInterval);
         }
-        return this.counterMetrics.get(name).updateExpireTime(this.ttlInMs);
+        return null;
     }
 
-    private Timer getOrAddTsTimer(final String name, Map<String, String> tags) {
-        String tagString = name;
-        String tag = MetricsHelper.processTags(new TreeMap<>(tags));
-        if (tags != null) {
-            tagString = name + tag;
-        }
-        Timer expirableTimer = this.timerMetrics.get(tagString);
-        if (expirableTimer == null) {
-            synchronized (this) {
-                if (this.timerMetrics.get(tagString) == null) {
-                    expirableTimer = new Timer(name, tag, new LockFreeSlidingWindowReservoir(), flushInterval)
-                            .updateExpireTime(this.ttlInMs);
-                    this.timerMetrics.put(tagString, expirableTimer);
-                    return expirableTimer;
-                }
-            }
-        }
-        return this.timerMetrics.get(tagString).updateExpireTime(this.ttlInMs);
-    }
-
-    public void close() {
+    public void stop() {
         tidy();
-        this.executor.shutdownNow();
+        this.flushExecutor.shutdownNow();
+        this.tidyExecutor.shutdownNow();
     }
 
     static class LockFreeSlidingWindowReservoir implements Reservoir {

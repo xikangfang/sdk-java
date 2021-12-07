@@ -1,6 +1,5 @@
 package byteplus.sdk.core.metrics;
 
-import com.codahale.metrics.Metric;
 import com.codahale.metrics.Reservoir;
 import com.codahale.metrics.Snapshot;
 import lombok.extern.slf4j.Slf4j;
@@ -8,72 +7,76 @@ import lombok.extern.slf4j.Slf4j;
 import java.util.*;
 import java.util.concurrent.*;
 
+import static byteplus.sdk.core.metrics.Constant.DEFAULT_METRICS_EXPIRE_TIME_MS;
+
 @Slf4j
-public class Timer implements Metric {
+public class Timer implements Metrics{
     private final MetricsHttpClient httpCli;
 
     private final String name;
 
-    private final ScheduledExecutorService executor;
-
     private final Map<String, String> tagMap;
 
-    private final Queue<Long> queue;
+    private final Queue<Double> queue;
 
     private final Reservoir reservoir;
 
     private static final ThreadFactory TIMER_THREAD_FACTORY;
 
-    private static final int DEFAULT_FLUSH_TIME = 10 * 1000;
+    private long expireTime;
 
-    private final ExpirableMetrics expirableMetrics;
-
-    public boolean isExpired() {
-        return this.expirableMetrics.isExpired();
-    }
-
-    public Timer updateExpireTime(final long ttlInMs) {
-        this.expirableMetrics.updateExpireTime(ttlInMs);
-        return this;
+    public Timer(String name, String tags, Reservoir reservoir, int flushTimeMs) {
+        this.name = name;
+        this.expireTime = System.currentTimeMillis() + DEFAULT_METRICS_EXPIRE_TIME_MS;
+        this.tagMap = MetricsHelper.recoverTags(tags);
+        this.reservoir = reservoir;
+        this.httpCli = MetricsHttpClient.getClient(Constant.OTHER_URL_FORMAT.replace("{}", MetricsConfig.getMetricsDomain()));
+        this.queue = new ConcurrentLinkedQueue<>();
     }
 
     static {
         TIMER_THREAD_FACTORY = new MetricsHelper.NamedThreadFactory("metric-timer-flush");
     }
 
-    public Timer(String name, String tags, Reservoir reservoir) {
-        this(name, tags, reservoir, DEFAULT_FLUSH_TIME);
+    public String getName() {
+        return this.name;
     }
 
-    public Timer(String name, String tags, Reservoir reservoir, int flushTimeMs) {
-        this.name = name;
-        this.tagMap = MetricsHelper.recoverTags(tags);
-        this.reservoir = reservoir;
-        this.httpCli = MetricsHttpClient.getClient(Constant.OTHER_URL_FORMAT.replace("{}", MetricsConfig.getMetricsDomain()));
-        this.queue = new ConcurrentLinkedQueue<>();
-        this.expirableMetrics = new ExpirableMetrics();
-        this.executor = Executors.newSingleThreadScheduledExecutor(TIMER_THREAD_FACTORY);
-        this.executor.scheduleAtFixedRate(this::flush, 0, flushTimeMs, TimeUnit.MILLISECONDS);
+    public boolean isExpired() {
+        return System.currentTimeMillis() > this.expireTime;
+    }
+
+    public void updateExpireTime(long ttlInMs) {
+        if (ttlInMs > 0) {
+            this.expireTime = System.currentTimeMillis() + ttlInMs;
+        }
+    }
+
+    @Override
+    public void emit(Double value, Map<String, String> tags) {
+        this.queue.offer(value);
     }
 
     public void flush() {
         try {
             int size = 0;
             while (size < Constant.MAX_FLUSH_SIZE && !this.queue.isEmpty()) {
-                Long item = this.queue.poll();
+                long item = this.queue.poll().longValue();
                 this.reservoir.update(item);
                 size++;
             }
             Snapshot snapshot = this.reservoir.getSnapshot();
-            List<MetricRequest> data = buildMetricList(snapshot, size);
-            this.httpCli.emit(data);
+            List<MetricRequest> metricRequests = buildMetricList(snapshot, size);
+            this.httpCli.put(metricRequests);
             if ((MetricsConfig.isEnablePrintLog())) {
-                log.info("remove : {}", data);
+                log.info("remove : {}", metricRequests);
             }
         } catch (Throwable e) {
             log.error("flush timer exception: {} \n {}", e.getMessage(), MetricsHelper.ExceptionUtil.getTrace(e));
         }
     }
+
+
 
     public List<MetricRequest> buildMetricList(Snapshot shot, int size) {
         List<MetricRequest> data = new ArrayList<>();
@@ -159,14 +162,6 @@ public class Timer implements Metric {
         pc999Request.setValue(shot.get999thPercentile());
         data.add(pc999Request);
         return data;
-    }
-
-    public void emit(long value) {
-        this.queue.offer(value);
-    }
-
-    public void close() {
-        this.executor.shutdownNow();
     }
 
 }

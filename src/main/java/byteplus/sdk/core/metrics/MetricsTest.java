@@ -4,13 +4,13 @@ import java.util.TreeMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-public class Demo {
+public class MetricsTest {
     static {
         metricsInit();
     }
 
     public static void metricsInit() {
-        MetricsConfig.setPrintLog(true);
+        MetricsConfig.setPrintLog(false);
     }
 
     // test demo for store report
@@ -73,9 +73,9 @@ public class Demo {
 
     public static void main(String[] args) throws InterruptedException {
         ExecutorService executorService = Executors.newFixedThreadPool(3);
-        executorService.submit(Demo::TestStoreReport);
-        executorService.submit(Demo::TestCounterReport);
-        executorService.submit(Demo::TestTimerReport);
+        executorService.submit(MetricsTest::TestStoreReport);
+        executorService.submit(MetricsTest::TestCounterReport);
+        executorService.submit(MetricsTest::TestTimerReport);
 
 //        TestCounterReport();
 //        TestStoreReport();
